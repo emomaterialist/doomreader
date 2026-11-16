@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111111">
+<title>DoomReader</title>
+<link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+
+<div id="auth-screen" class="auth-screen">
+  <div class="auth-box">
+    <div class="brand">
+      <div class="brand-name">DOOMREADER</div>
+      <div class="brand-tag">The app that hooks you into reading books</div>
+    </div>
+
+    <form id="form-login" class="auth-form" autocomplete="on">
+      <label for="login-email">Email</label>
+      <input id="login-email" type="email" autocomplete="email" required>
+      <label for="login-password">Password</label>
+      <input id="login-password" type="password" autocomplete="current-password" required>
+      <button type="submit" class="btn btn-primary">Log in</button>
+      <div id="login-msg" class="msg"></div>
+      <p class="switch">New here? <a href="#" id="to-signup">Sign up</a></p>
+    </form>
+
+    <form id="form-signup" class="auth-form" autocomplete="on" style="display:none">
+      <p class="note">Create your account first. You will enter your Etsy Order number after you log in.</p>
+      <label for="signup-email">Email</label>
+      <input id="signup-email" type="email" autocomplete="email" required>
+      <label for="signup-password">Password (6 or more characters)</label>
+      <input id="signup-password" type="password" autocomplete="new-password" minlength="6" required>
+      <button type="submit" class="btn btn-primary">Sign up</button>
+      <div id="signup-msg" class="msg"></div>
+      <p class="switch">Have an account? <a href="#" id="to-login">Log in</a></p>
+    </form>
+
+    <form id="form-unlock" class="auth-form" style="display:none">
+      <p id="unlock-who" class="note"></p>
+      <label for="unlock-order">Etsy order number</label>
+      <input id="unlock-order" type="text" inputmode="numeric" autocomplete="off" required>
+      <label for="unlock-email">Email on your Etsy order</label>
+      <input id="unlock-email" type="email" autocomplete="off" required>
+      <button type="submit" class="btn btn-primary">Unlock</button>
+      <div id="unlock-msg" class="msg"></div>
+      <p class="hint">Find the Order number in your Etsy purchase email or on your Etsy Purchases page. Just bought it? It can take up to 10 minutes to appear.</p>
+      <p class="switch"><a href="#" id="unlock-logout">Log out</a></p>
+    </form>
+  </div>
+</div>
+
+<div id="app" class="app" style="display:none">
+  <header class="topbar">
+    <div class="topbar-brand">DOOMREADER</div>
+    <button id="btn-logout" class="btn-link" type="button">Log out</button>
+  </header>
+
+  <main class="main">
+    <section id="view-feed" class="view">
+      <div id="feed-scroll" class="feed-scroll"></div>
+    </section>
+
+    <section id="view-library" class="view">
+      <div class="page">
+        <div class="page-head">
+          <h1>Library</h1>
+          <button id="btn-add-book" class="btn btn-primary btn-small" type="button">Add book</button>
+        </div>
+        <div id="library-list"></div>
+      </div>
+    </section>
+
+    <section id="view-reader" class="view">
+      <div class="reader-bar">
+        <button id="reader-back" class="btn-link" type="button">Back</button>
+        <div id="reader-title" class="reader-title"></div>
+        <div class="reader-size">
+          <button id="size-down" class="btn-link" type="button" aria-label="Smaller text">A-</button>
+          <button id="size-up" class="btn-link" type="button" aria-label="Larger text">A+</button>
+        </div>
+      </div>
+      <div id="reader-scroll" class="reader-scroll">
+        <div id="reader-body" class="reader-body"></div>
+        <div id="reader-reattach" class="reattach" style="display:none">
+          <h2>Add this book's text on this device</h2>
+          <p>Your progress and highlights are saved to your account, but the book text stays on the device you added it from. Paste it again or choose a .txt file to keep reading here.</p>
+          <input id="reattach-file" type="file" accept=".txt,text/plain">
+          <textarea id="reattach-text" rows="6" placeholder="Paste the book text"></textarea>
+          <button id="btn-reattach" class="btn btn-primary" type="button">Save to this device</button>
+          <div id="reattach-msg" class="msg"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <nav id="nav" class="nav">
+    <button class="nav-btn" data-view="feed" type="button">Feed</button>
+    <button class="nav-btn" data-view="library" type="button">Library</button>
+  </nav>
+</div>
+
+<div id="modal-add" class="modal" style="display:none">
+  <div class="modal-box">
+    <h2>Add a book</h2>
+    <label for="add-title">Title</label>
+    <input id="add-title" type="text" maxlength="200">
+    <label for="add-author">Author (optional)</label>
+    <input id="add-author" type="text" maxlength="200">
+    <label for="add-file">Choose a .txt file</label>
+    <input id="add-file" type="file" accept=".txt,text/plain">
+    <label for="add-text">Or paste the text</label>
+    <textarea id="add-text" rows="6" placeholder="Paste the book text"></textarea>
+    <div id="add-msg" class="msg"></div>
+    <div class="modal-actions">
+      <button id="add-cancel" class="btn" type="button">Cancel</button>
+      <button id="add-save" class="btn btn-primary" type="button">Add to library</button>
+    </div>
+  </div>
+</div>
+
+<button id="hl-btn" class="hl-btn" type="button" style="display:none">Highlight</button>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="script.js?v=1"></script>
+</body>
+</html>
