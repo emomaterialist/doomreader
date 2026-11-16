@@ -342,3 +342,75 @@ textarea { resize: vertical; }
   text-align: center;
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ---------- chapters, contents, edit screen ---------- */
+.reader-body h2.chapter-title {
+  font-family: Georgia, "Times New Roman", serif;
+  color: var(--green);
+  font-size: 1.5em;
+  line-height: 1.25;
+  margin: 2em 0 0.9em;
+  padding-top: 0.6em;
+  border-top: 3px solid var(--magenta);
+}
+.reader-body h2.chapter-title:first-child { margin-top: 0.4em; }
+.reader-body h3.sub-title {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: var(--orange);
+  font-size: 0.8em;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin: 1.8em 0 0.6em;
+}
+
+.edit-scroll {
+  position: absolute;
+  top: var(--bar-h);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow-y: auto;
+}
+.edit-inner { max-width: 640px; margin: 0 auto; padding: 16px 16px 80px; }
+.edit-inner label { display: block; margin: 14px 0 6px; font-size: 13px; font-weight: 700; color: var(--green); }
+.edit-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0; }
+.section-h { color: var(--green); letter-spacing: 1px; margin-top: 26px; }
+.edit-inner .hint, .modal-box .hint { font-size: 13px; color: var(--muted); line-height: 1.5; margin: 10px 0 0; }
+
+.ch-row {
+  background: var(--card);
+  border: 2px solid var(--green);
+  box-shadow: 4px 4px 0 var(--magenta);
+  padding: 12px;
+  margin: 0 4px 16px 0;
+}
+.ch-top { display: flex; align-items: center; gap: 10px; }
+.ch-num {
+  flex: 0 0 auto;
+  min-width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--orange);
+  color: var(--bg);
+  font-weight: 900;
+}
+.ch-row .book-actions { flex-wrap: wrap; }
+
+.modal-actions.wrap { flex-wrap: wrap; justify-content: flex-end; }
+
+.toc-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid #333;
+  color: var(--white);
+  font-weight: 700;
+  padding: 12px 6px;
+  cursor: pointer;
+  min-height: 44px;
+}
+.toc-item.sub { padding-left: 24px; color: var(--orange); font-weight: 400; font-size: 14px; }

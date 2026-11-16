@@ -5,8 +5,8 @@
    1) Paste your DoomReader project URL and publishable key below.
       (Supabase > Project Settings > API Keys. Never use the secret key here.)
    ============================================================ */
-var SUPABASE_URL = 'https://asqagrzeadzmtedttfzi.supabase.co';
-var SUPABASE_KEY = 'sb_publishable_5LpOZw3izDYGbB4IgwCsdg_gKy8rSYq';
+var SUPABASE_URL = 'PASTE_YOUR_DOOMREADER_PROJECT_URL_HERE';
+var SUPABASE_KEY = 'PASTE_YOUR_PUBLISHABLE_KEY_HERE';
 var PRODUCT_ID = 'reading-app';
 
 var MAX_BOOK_CHARS = 3000000;
@@ -223,10 +223,10 @@ async function loadAll() {
    ============================================================ */
 function showView(name) {
   state.view = name;
-  ['feed', 'library', 'reader'].forEach(function (v) {
+  ['feed', 'library', 'reader', 'edit'].forEach(function (v) {
     $('view-' + v).classList.toggle('active', v === name);
   });
-  $('nav').style.display = (name === 'reader') ? 'none' : 'flex';
+  $('nav').style.display = (name === 'reader' || name === 'edit') ? 'none' : 'flex';
   Array.prototype.forEach.call(document.querySelectorAll('.nav-btn'), function (b) {
     b.classList.toggle('active', b.getAttribute('data-view') === name);
   });
@@ -539,10 +539,14 @@ function renderLibrary() {
       state.returnView = 'library';
       openBook(b.id, b.status === 'finished' ? 0 : null);
     });
+    var edit = el('button', 'btn btn-small', 'Edit');
+    edit.type = 'button';
+    edit.addEventListener('click', function () { openEdit(b); });
     var del = el('button', 'btn btn-small', 'Delete');
     del.type = 'button';
     del.addEventListener('click', function () { deleteBook(b); });
     acts.appendChild(read);
+    acts.appendChild(edit);
     acts.appendChild(del);
     card.appendChild(acts);
     list.appendChild(card);
@@ -623,7 +627,7 @@ async function saveNewBook() {
   }).select().single();
   if (res.error || !res.data) return showMsg('add-msg', "Couldn't save the book. Check your connection and try again.", 'error');
   try {
-    await idbSet(res.data.id, text);
+    await saveChapters(res.data.id, parseMarkup(text));
   } catch (e) {
     await sb.from('books').delete().eq('id', res.data.id);
     return showMsg('add-msg', "Your browser wouldn't store the text. Free up space or try another browser.", 'error');
@@ -661,12 +665,163 @@ function setScrollPct(p) {
   $('reader-scroll').scrollTop = scrollMax() * (p / 100);
 }
 
-function splitParagraphs(text) {
-  var parts = text.split(/\n\s*\n/).map(function (s) { return s.replace(/\s*\n\s*/g, ' ').trim(); }).filter(Boolean);
-  if (parts.length < 3 && text.length > 2000) {
-    parts = text.split(/\n/).map(function (s) { return s.trim(); }).filter(Boolean);
+/* ---------- chapter markup ----------
+   A line starting with "# " begins a new chapter (the rest of the line is its title).
+   A line starting with "## " is a subheading inside a chapter. */
+function parseMarkup(text) {
+  var lines = String(text).replace(/\r\n/g, '\n').split('\n');
+  var chapters = [];
+  var cur = { title: '', lines: [] };
+  function push() {
+    var body = cur.lines.join('\n').trim();
+    if (cur.title || body) chapters.push({ title: cur.title, body: body });
   }
-  return parts;
+  lines.forEach(function (line) {
+    var m = line.trim().match(/^#(?!#)\s+(.+)$/);
+    if (m) {
+      push();
+      cur = { title: m[1].trim(), lines: [] };
+    } else {
+      cur.lines.push(line);
+    }
+  });
+  push();
+  if (chapters.length === 0) chapters.push({ title: '', body: String(text).trim() });
+  return chapters;
+}
+
+function serializeChapters(chapters) {
+  return chapters.map(function (c) {
+    return (c.title ? '# ' + c.title + '\n\n' : '') + c.body.trim();
+  }).join('\n\n');
+}
+
+function parseBody(body) {
+  var lines = String(body).replace(/\r\n/g, '\n').split('\n');
+  var blocks = [], cur = [];
+  function flush() {
+    if (cur.length) { blocks.push({ type: 'p', text: cur.join(' ') }); cur = []; }
+  }
+  lines.forEach(function (line) {
+    var t = line.trim();
+    var m = t.match(/^##\s+(.+)$/);
+    if (m) { flush(); blocks.push({ type: 'h', text: m[1].trim() }); }
+    else if (t === '') flush();
+    else cur.push(t);
+  });
+  flush();
+  var pCount = blocks.filter(function (b) { return b.type === 'p'; }).length;
+  if (pCount < 3 && String(body).length > 2000) {
+    blocks = [];
+    lines.forEach(function (line) {
+      var t = line.trim();
+      var m = t.match(/^##\s+(.+)$/);
+      if (m) blocks.push({ type: 'h', text: m[1].trim() });
+      else if (t) blocks.push({ type: 'p', text: t });
+    });
+  }
+  return blocks;
+}
+
+function detectChapterHeadings(text) {
+  var count = 0;
+  var re = /^(chapter|part|book|prologue|epilogue|introduction|preface|prelude|interlude|afterword)\b.{0,70}$/i;
+  var lines = String(text).replace(/\r\n/g, '\n').split('\n');
+  var out = [];
+  for (var i = 0; i < lines.length; i++) {
+    var t = lines[i].trim();
+    if (t && t.charAt(0) !== '#' && t.length <= 80 && re.test(t)) {
+      count++;
+      var nxt = (i + 1 < lines.length) ? lines[i + 1].trim() : '';
+      var after = (i + 2 < lines.length) ? lines[i + 2].trim() : '';
+      if (nxt && nxt.length <= 70 && nxt.charAt(0) !== '#' && !/[.,;:!?”"]$/.test(nxt) && !re.test(nxt) && after === '') {
+        var sep = /[:\-–—]$/.test(t) ? ' ' : ': ';
+        out.push('# ' + t + sep + nxt);
+        i++;
+      } else {
+        out.push('# ' + t);
+      }
+    } else {
+      out.push(lines[i]);
+    }
+  }
+  return { text: out.join('\n'), count: count };
+}
+
+function detectSubheadings(text) {
+  var lines = String(text).replace(/\r\n/g, '\n').split('\n');
+  var count = 0;
+  var out = lines.map(function (line, i) {
+    var t = line.trim();
+    if (!t || t.charAt(0) === '#') return line;
+    if (t.length < 3 || t.length > 70) return line;
+    if (t.split(/\s+/).length > 10) return line;
+    if (/[.,;:”"…]$/.test(t)) return line;
+    if (!/^[A-Z0-9“"]/.test(t)) return line;
+    var prevBlank = (i === 0) || lines[i - 1].trim() === '';
+    var nextBlank = (i === lines.length - 1) || lines[i + 1].trim() === '';
+    if (!prevBlank || !nextBlank) return line;
+    count++;
+    return '## ' + t;
+  });
+  return { text: out.join('\n'), count: count };
+}
+
+function wordCount(s) {
+  var t = String(s).trim();
+  return t ? t.split(/\s+/).length : 0;
+}
+
+async function loadChapters(id) {
+  var v = await idbGet(id);
+  if (!v) return null;
+  if (typeof v === 'string') return parseMarkup(v);
+  return (v.chapters && v.chapters.length) ? v.chapters : null;
+}
+function saveChapters(id, chapters) { return idbSet(id, { chapters: chapters }); }
+
+var readerToc = [];
+function renderBook(chapters) {
+  var frag = document.createDocumentFragment();
+  readerToc = [];
+  chapters.forEach(function (ch) {
+    if (ch.title) {
+      var h2 = el('h2', 'chapter-title', ch.title);
+      frag.appendChild(h2);
+      readerToc.push({ el: h2, title: ch.title, level: 1 });
+    }
+    parseBody(ch.body).forEach(function (b) {
+      if (b.type === 'h') {
+        var h3 = el('h3', 'sub-title', b.text);
+        frag.appendChild(h3);
+        readerToc.push({ el: h3, title: b.text, level: 2 });
+      } else {
+        frag.appendChild(el('p', '', b.text));
+      }
+    });
+  });
+  $('reader-body').appendChild(frag);
+}
+
+function openToc() {
+  var list = $('toc-list');
+  list.textContent = '';
+  if (readerToc.length === 0) {
+    list.appendChild(el('p', 'hint', 'This book has no chapters yet. Use Edit in your library to organize it.'));
+  }
+  readerToc.forEach(function (item) {
+    var b = el('button', 'toc-item' + (item.level === 2 ? ' sub' : ''), item.title);
+    b.type = 'button';
+    b.addEventListener('click', function () {
+      $('modal-toc').style.display = 'none';
+      var sc = $('reader-scroll');
+      var top = item.el.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop;
+      sc.scrollTop = Math.max(0, top - 12);
+      if (reader) { reader.lastActivity = Date.now(); reader.pct = getPct(); }
+    });
+    list.appendChild(b);
+  });
+  $('modal-toc').style.display = 'flex';
 }
 
 async function openBook(id, startPct) {
@@ -682,9 +837,9 @@ async function openBook(id, startPct) {
   $('reader-scroll').scrollTop = 0;
   applyFontSize();
 
-  var text = null;
-  try { text = await idbGet(id); } catch (e) { text = null; }
-  if (!text) {
+  var chapters = null;
+  try { chapters = await loadChapters(id); } catch (e) { chapters = null; }
+  if (!chapters) {
     $('reader-body').style.display = 'none';
     $('reader-reattach').style.display = 'block';
     $('reattach-text').value = '';
@@ -694,9 +849,7 @@ async function openBook(id, startPct) {
     return;
   }
 
-  var frag = document.createDocumentFragment();
-  splitParagraphs(text).forEach(function (p) { frag.appendChild(el('p', '', p)); });
-  $('reader-body').appendChild(frag);
+  renderBook(chapters);
 
   var pct = (startPct !== null && startPct !== undefined) ? startPct : (Number(book.progress_pct) || 0);
   requestAnimationFrame(function () { setScrollPct(pct); });
@@ -826,10 +979,179 @@ async function saveReattach() {
   var id = $('reader-reattach').getAttribute('data-book');
   var text = await getTextFrom('reattach-file', 'reattach-text', 'reattach-msg');
   if (text === null) return;
-  try { await idbSet(id, text); } catch (e) {
+  try { await saveChapters(id, parseMarkup(text)); } catch (e) {
     return showMsg('reattach-msg', "Your browser wouldn't store the text.", 'error');
   }
   openBook(id, null);
+}
+
+/* ============================================================
+   Edit book: details, chapters, organize by chapters
+   ============================================================ */
+var editing = null;
+
+async function openEdit(book) {
+  var chapters = null;
+  try { chapters = await loadChapters(book.id); } catch (e) { chapters = null; }
+  editing = { book: book, chapters: chapters || [], hasText: !!chapters };
+  $('edit-title').value = book.title;
+  $('edit-author').value = book.author || '';
+  clearMsg('edit-msg');
+  showView('edit');
+  renderEdit();
+}
+
+async function persistChapters() {
+  try {
+    await saveChapters(editing.book.id, editing.chapters);
+    editing.hasText = editing.chapters.length > 0;
+    state.feedDirty = true;
+    return true;
+  } catch (e) {
+    toast("Your browser wouldn't store that. Free up space and try again.");
+    return false;
+  }
+}
+
+function renderEdit() {
+  var note = $('edit-note');
+  note.textContent = editing.hasText
+    ? 'Chapters are stored on this device. Tap Edit text to change a chapter, or Organize by chapters to split one big paste into chapters.'
+    : "This book's text isn't on this device yet. Add a chapter, or use Organize by chapters and paste the whole book.";
+  var box = $('edit-chapters');
+  box.textContent = '';
+  if (editing.chapters.length === 0) {
+    box.appendChild(el('p', 'empty', 'No chapters yet.'));
+    return;
+  }
+  editing.chapters.forEach(function (ch, i) {
+    var row = el('div', 'ch-row');
+    var top = el('div', 'ch-top');
+    top.appendChild(el('span', 'ch-num', String(i + 1)));
+    var inp = el('input');
+    inp.type = 'text';
+    inp.maxLength = 200;
+    inp.value = ch.title;
+    inp.placeholder = 'Untitled section';
+    inp.addEventListener('change', async function () {
+      ch.title = inp.value.trim();
+      await persistChapters();
+    });
+    top.appendChild(inp);
+    row.appendChild(top);
+    row.appendChild(el('div', 'book-meta', wordCount(ch.body).toLocaleString() + ' words'));
+    var acts = el('div', 'book-actions');
+    function mk(label, fn) {
+      var b = el('button', 'btn btn-small', label);
+      b.type = 'button';
+      b.addEventListener('click', fn);
+      acts.appendChild(b);
+      return b;
+    }
+    mk('Edit text', function () { openChapterModal(i); });
+    mk('Up', async function () {
+      if (i === 0) return;
+      var t = editing.chapters[i - 1]; editing.chapters[i - 1] = ch; editing.chapters[i] = t;
+      await persistChapters(); renderEdit();
+    });
+    mk('Down', async function () {
+      if (i === editing.chapters.length - 1) return;
+      var t = editing.chapters[i + 1]; editing.chapters[i + 1] = ch; editing.chapters[i] = t;
+      await persistChapters(); renderEdit();
+    });
+    mk('Delete', async function () {
+      if (!window.confirm('Delete this chapter from this device? This cannot be undone.')) return;
+      editing.chapters.splice(i, 1);
+      await persistChapters(); renderEdit();
+    });
+    row.appendChild(acts);
+    box.appendChild(row);
+  });
+}
+
+async function saveDetails() {
+  var title = $('edit-title').value.trim();
+  var author = $('edit-author').value.trim();
+  if (!title) return showMsg('edit-msg', 'Add a title.', 'error');
+  var ok = await updateBook(editing.book.id, { title: title, author: author || null });
+  if (!ok) return showMsg('edit-msg', "Couldn't save. Check your connection and try again.", 'error');
+  state.feedDirty = true;
+  showMsg('edit-msg', 'Saved.', 'success');
+}
+
+async function closeEdit() {
+  editing = null;
+  showView('library');
+}
+
+/* ---------- chapter editor ---------- */
+var chapterIndex = null;
+function openChapterModal(index) {
+  chapterIndex = index;
+  clearMsg('ch-msg');
+  if (index === null) {
+    $('ch-modal-head').textContent = 'Add a chapter';
+    $('ch-title').value = '';
+    $('ch-body').value = '';
+  } else {
+    var ch = editing.chapters[index];
+    $('ch-modal-head').textContent = 'Edit chapter';
+    $('ch-title').value = ch.title;
+    $('ch-body').value = ch.body;
+  }
+  $('modal-chapter').style.display = 'flex';
+}
+
+async function saveChapterModal() {
+  var title = $('ch-title').value.trim();
+  var body = $('ch-body').value.replace(/\r\n/g, '\n').trim();
+  if (!body) return showMsg('ch-msg', 'Paste or type the chapter text first.', 'error');
+  if (body.length > MAX_BOOK_CHARS) return showMsg('ch-msg', 'That chapter is too long.', 'error');
+  if (chapterIndex === null) {
+    if (!title) title = 'Chapter ' + (editing.chapters.length + 1);
+    editing.chapters.push({ title: title, body: body });
+  } else {
+    editing.chapters[chapterIndex] = { title: title, body: body };
+  }
+  if (!(await persistChapters())) return;
+  $('modal-chapter').style.display = 'none';
+  renderEdit();
+  toast('Chapter saved');
+}
+
+function runDetectSub(textId, msgId) {
+  var r = detectSubheadings($(textId).value);
+  $(textId).value = r.text;
+  showMsg(msgId, r.count > 0
+    ? r.count + ' line' + (r.count === 1 ? '' : 's') + ' marked as subheadings (they now start with ##). Check them, delete the ## from any that are wrong, then save.'
+    : 'No likely subheadings found. You can type ## at the start of any line to make it a subheading.', 'info');
+}
+
+/* ---------- organize by chapters ---------- */
+function openOrganize() {
+  $('org-text').value = serializeChapters(editing.chapters);
+  clearMsg('org-msg');
+  $('modal-organize').style.display = 'flex';
+}
+
+function runDetectChapters() {
+  var r = detectChapterHeadings($('org-text').value);
+  $('org-text').value = r.text;
+  showMsg('org-msg', r.count > 0
+    ? r.count + ' chapter heading' + (r.count === 1 ? '' : 's') + ' found (they now start with #). Check them, fix any, then tap Apply.'
+    : 'No lines like "Chapter 1" or "Part II" found. Type # at the start of each chapter title line yourself.', 'info');
+}
+
+async function applyOrganize() {
+  var text = $('org-text').value.trim();
+  if (!text) return showMsg('org-msg', 'There is no text to organize.', 'error');
+  if (text.length > MAX_BOOK_CHARS) return showMsg('org-msg', 'That is too long for one book (limit about 3 million characters).', 'error');
+  var chapters = parseMarkup(text);
+  editing.chapters = chapters;
+  if (!(await persistChapters())) return;
+  $('modal-organize').style.display = 'none';
+  renderEdit();
+  toast(chapters.length + (chapters.length === 1 ? ' chapter' : ' chapters'));
 }
 
 /* ============================================================
@@ -860,6 +1182,20 @@ function wire() {
     $('reader-scroll').addEventListener(t, function () { if (reader) reader.lastActivity = Date.now(); }, { passive: true });
   });
   $('btn-reattach').addEventListener('click', saveReattach);
+  $('btn-toc').addEventListener('click', openToc);
+  $('toc-close').addEventListener('click', function () { $('modal-toc').style.display = 'none'; });
+
+  $('edit-back').addEventListener('click', closeEdit);
+  $('edit-save-details').addEventListener('click', saveDetails);
+  $('btn-add-chapter').addEventListener('click', function () { openChapterModal(null); });
+  $('btn-organize').addEventListener('click', openOrganize);
+  $('ch-cancel').addEventListener('click', function () { $('modal-chapter').style.display = 'none'; });
+  $('ch-save').addEventListener('click', saveChapterModal);
+  $('ch-detect').addEventListener('click', function () { runDetectSub('ch-body', 'ch-msg'); });
+  $('org-cancel').addEventListener('click', function () { $('modal-organize').style.display = 'none'; });
+  $('org-apply').addEventListener('click', applyOrganize);
+  $('org-detect-ch').addEventListener('click', runDetectChapters);
+  $('org-detect-sub').addEventListener('click', function () { runDetectSub('org-text', 'org-msg'); });
 
   document.addEventListener('selectionchange', onSelectionChange);
   $('hl-btn').addEventListener('mousedown', function (e) { e.preventDefault(); });

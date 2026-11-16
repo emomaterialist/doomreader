@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#111111">
 <title>DoomReader</title>
-<link rel="stylesheet" href="style.css?v=1">
+<link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
 
@@ -76,6 +76,7 @@
       <div class="reader-bar">
         <button id="reader-back" class="btn-link" type="button">Back</button>
         <div id="reader-title" class="reader-title"></div>
+        <button id="btn-toc" class="btn-link" type="button">Contents</button>
         <div class="reader-size">
           <button id="size-down" class="btn-link" type="button" aria-label="Smaller text">A-</button>
           <button id="size-up" class="btn-link" type="button" aria-label="Larger text">A+</button>
@@ -90,6 +91,33 @@
           <textarea id="reattach-text" rows="6" placeholder="Paste the book text"></textarea>
           <button id="btn-reattach" class="btn btn-primary" type="button">Save to this device</button>
           <div id="reattach-msg" class="msg"></div>
+        </div>
+      </div>
+    </section>
+    <section id="view-edit" class="view">
+      <div class="reader-bar">
+        <button id="edit-back" class="btn-link" type="button">Back</button>
+        <div class="reader-title">Edit book</div>
+        <div class="reader-size"></div>
+      </div>
+      <div class="edit-scroll">
+        <div class="edit-inner">
+          <label for="edit-title">Title</label>
+          <input id="edit-title" type="text" maxlength="200">
+          <label for="edit-author">Author</label>
+          <input id="edit-author" type="text" maxlength="200">
+          <div class="edit-actions">
+            <button id="edit-save-details" class="btn btn-small" type="button">Save details</button>
+          </div>
+          <div id="edit-msg" class="msg"></div>
+
+          <h2 class="section-h">Chapters</h2>
+          <p id="edit-note" class="hint"></p>
+          <div class="edit-actions">
+            <button id="btn-add-chapter" class="btn btn-primary btn-small" type="button">Add chapter</button>
+            <button id="btn-organize" class="btn btn-small" type="button">Organize by chapters</button>
+          </div>
+          <div id="edit-chapters"></div>
         </div>
       </div>
     </section>
@@ -112,6 +140,7 @@
     <input id="add-file" type="file" accept=".txt,text/plain">
     <label for="add-text">Or paste the text</label>
     <textarea id="add-text" rows="6" placeholder="Paste the book text"></textarea>
+    <p class="hint">Pasting one chapter at a time? Paste the first chapter here. Then tap Edit on the book and use Add chapter. Start a line with # to name a chapter, and ## for a subheading.</p>
     <div id="add-msg" class="msg"></div>
     <div class="modal-actions">
       <button id="add-cancel" class="btn" type="button">Cancel</button>
@@ -120,10 +149,52 @@
   </div>
 </div>
 
+<div id="modal-chapter" class="modal" style="display:none">
+  <div class="modal-box">
+    <h2 id="ch-modal-head">Add a chapter</h2>
+    <label for="ch-title">Chapter title</label>
+    <input id="ch-title" type="text" maxlength="200" placeholder="Chapter 1: The beginning">
+    <label for="ch-body">Chapter text</label>
+    <textarea id="ch-body" rows="10" placeholder="Paste the chapter text"></textarea>
+    <p class="hint">A line starting with ## becomes a subheading. Tap Detect subheadings to mark short stand-alone lines for you, then check them.</p>
+    <div id="ch-msg" class="msg"></div>
+    <div class="modal-actions wrap">
+      <button id="ch-detect" class="btn btn-small" type="button">Detect subheadings</button>
+      <button id="ch-cancel" class="btn btn-small" type="button">Cancel</button>
+      <button id="ch-save" class="btn btn-primary btn-small" type="button">Save chapter</button>
+    </div>
+  </div>
+</div>
+
+<div id="modal-organize" class="modal" style="display:none">
+  <div class="modal-box">
+    <h2>Organize by chapters</h2>
+    <p class="hint">This is your whole book as text. A line starting with # starts a new chapter and is its title. A line starting with ## is a subheading. Tap a Detect button to add the marks for you, check them, then tap Apply.</p>
+    <textarea id="org-text" rows="14" placeholder="Paste the whole book here"></textarea>
+    <div id="org-msg" class="msg"></div>
+    <div class="modal-actions wrap">
+      <button id="org-detect-ch" class="btn btn-small" type="button">Detect chapter headings</button>
+      <button id="org-detect-sub" class="btn btn-small" type="button">Detect subheadings</button>
+      <button id="org-cancel" class="btn btn-small" type="button">Cancel</button>
+      <button id="org-apply" class="btn btn-primary btn-small" type="button">Apply</button>
+    </div>
+  </div>
+</div>
+
+<div id="modal-toc" class="modal" style="display:none">
+  <div class="modal-box">
+    <h2>Contents</h2>
+    <div id="toc-list"></div>
+    <div class="modal-actions">
+      <button id="toc-close" class="btn btn-small" type="button">Close</button>
+    </div>
+  </div>
+</div>
+
 <button id="hl-btn" class="hl-btn" type="button" style="display:none">Highlight</button>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<script src="script.js?v=1"></script>
+<script src="script.js?v=2"></script>
 </body>
 </html>
