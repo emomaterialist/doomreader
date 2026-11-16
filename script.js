@@ -5,8 +5,8 @@
    1) Paste your DoomReader project URL and publishable key below.
       (Supabase > Project Settings > API Keys. Never use the secret key here.)
    ============================================================ */
-var SUPABASE_URL = 'https://asqagrzeadzmtedttfzi.supabase.co';
-var SUPABASE_KEY = 'sb_publishable_5LpOZw3izDYGbB4IgwCsdg_gKy8rSYq';
+var SUPABASE_URL = 'PASTE_YOUR_DOOMREADER_PROJECT_URL_HERE';
+var SUPABASE_KEY = 'PASTE_YOUR_PUBLISHABLE_KEY_HERE';
 var PRODUCT_ID = 'reading-app';
 
 var MAX_BOOK_CHARS = 3000000;
@@ -677,7 +677,7 @@ function parseMarkup(text) {
     if (cur.title || body) chapters.push({ title: cur.title, body: body });
   }
   lines.forEach(function (line) {
-    var m = line.trim().match(/^#(?!#)\s+(.+)$/);
+    var m = line.trim().match(/^#(?!#)\s*(\S.*)$/);
     if (m) {
       push();
       cur = { title: m[1].trim(), lines: [] };
@@ -704,7 +704,7 @@ function parseBody(body) {
   }
   lines.forEach(function (line) {
     var t = line.trim();
-    var m = t.match(/^##\s+(.+)$/);
+    var m = t.match(/^##(?!#)\s*(\S.*)$/);
     if (m) { flush(); blocks.push({ type: 'h', text: m[1].trim() }); }
     else if (t === '') flush();
     else cur.push(t);
@@ -715,7 +715,7 @@ function parseBody(body) {
     blocks = [];
     lines.forEach(function (line) {
       var t = line.trim();
-      var m = t.match(/^##\s+(.+)$/);
+      var m = t.match(/^##(?!#)\s*(\S.*)$/);
       if (m) blocks.push({ type: 'h', text: m[1].trim() });
       else if (t) blocks.push({ type: 'p', text: t });
     });
@@ -1099,6 +1099,7 @@ function openChapterModal(index) {
     $('ch-title').value = ch.title;
     $('ch-body').value = ch.body;
   }
+  $('ch-body').dispatchEvent(new Event('input'));
   $('modal-chapter').style.display = 'flex';
 }
 
@@ -1122,6 +1123,7 @@ async function saveChapterModal() {
 function runDetectSub(textId, msgId) {
   var r = detectSubheadings($(textId).value);
   $(textId).value = r.text;
+  $(textId).dispatchEvent(new Event('input'));
   showMsg(msgId, r.count > 0
     ? r.count + ' line' + (r.count === 1 ? '' : 's') + ' marked as subheadings (they now start with ##). Check them, delete the ## from any that are wrong, then save.'
     : 'No likely subheadings found. You can type ## at the start of any line to make it a subheading.', 'info');
@@ -1130,6 +1132,7 @@ function runDetectSub(textId, msgId) {
 /* ---------- organize by chapters ---------- */
 function openOrganize() {
   $('org-text').value = serializeChapters(editing.chapters);
+  $('org-text').dispatchEvent(new Event('input'));
   clearMsg('org-msg');
   $('modal-organize').style.display = 'flex';
 }
@@ -1137,6 +1140,7 @@ function openOrganize() {
 function runDetectChapters() {
   var r = detectChapterHeadings($('org-text').value);
   $('org-text').value = r.text;
+  $('org-text').dispatchEvent(new Event('input'));
   showMsg('org-msg', r.count > 0
     ? r.count + ' chapter heading' + (r.count === 1 ? '' : 's') + ' found (they now start with #). Check them, fix any, then tap Apply.'
     : 'No lines like "Chapter 1" or "Part II" found. Type # at the start of each chapter title line yourself.', 'info');
@@ -1157,7 +1161,144 @@ async function applyOrganize() {
 /* ============================================================
    Wire up
    ============================================================ */
+/* ============================================================
+   Find, replace and marked-lines tools (for the chapter dialogs)
+   ============================================================ */
+function listMarks(text) {
+  var out = [];
+  var pos = 0;
+  text.split('\n').forEach(function (line) {
+    var m = line.match(/^(#{1,2})(?!#)\s*(.*)$/);
+    if (m && m[2].trim()) out.push({ start: pos, end: pos + line.length, level: m[1].length, text: m[2].trim() });
+    pos += line.length + 1;
+  });
+  return out;
+}
+
+function escapeRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+function jumpTo(ta, start, end) {
+  var max = Math.max(0, ta.scrollHeight - ta.clientHeight);
+  ta.scrollTop = Math.max(0, Math.min(max, max * (start / Math.max(1, ta.value.length)) - ta.clientHeight / 2));
+  ta.focus();
+  ta.setSelectionRange(start, end);
+}
+
+function setupTextTools(p, taId) {
+  var ta = $(taId), find = $(p + '-find'), repl = $(p + '-repl');
+  var msg = $(p + '-find-msg'), marks = $(p + '-marks'), timer = null;
+
+  function setValue(v, selStart, selEnd) {
+    var top = ta.scrollTop;
+    ta.value = v;
+    ta.scrollTop = top;
+    if (selStart !== undefined) ta.setSelectionRange(selStart, selEnd);
+    renderMarks();
+  }
+
+  function renderMarks() {
+    var list = listMarks(ta.value);
+    marks.textContent = '';
+    var ch = list.filter(function (m) { return m.level === 1; }).length;
+    var sub = list.length - ch;
+    marks.appendChild(el('div', 'hint', list.length === 0
+      ? 'No marked lines yet. Lines starting with # are chapters and ## are subheadings.'
+      : 'Marked lines: ' + ch + (ch === 1 ? ' chapter, ' : ' chapters, ') + sub + (sub === 1 ? ' subheading' : ' subheadings') + '. Tap Go to jump to one.'));
+    var shown = list.slice(0, 200);
+    shown.forEach(function (m) {
+      var row = el('div', 'mark-row');
+      row.appendChild(el('span', 'mark-tag' + (m.level === 2 ? ' sub' : ''), m.level === 1 ? 'CH' : 'SUB'));
+      row.appendChild(el('span', 'mark-text', m.text));
+      function mk(label, fn) {
+        var b = el('button', 'btn-mini', label);
+        b.type = 'button';
+        b.addEventListener('click', fn);
+        row.appendChild(b);
+      }
+      mk('Go', function () { jumpTo(ta, m.start, m.end); });
+      mk('Unmark', function () {
+        var v = ta.value;
+        setValue(v.slice(0, m.start) + m.text + v.slice(m.end));
+      });
+      mk(m.level === 1 ? 'To ##' : 'To #', function () {
+        var v = ta.value;
+        setValue(v.slice(0, m.start) + (m.level === 1 ? '## ' : '# ') + m.text + v.slice(m.end));
+      });
+      marks.appendChild(row);
+    });
+    if (list.length > shown.length) {
+      marks.appendChild(el('div', 'hint', 'Showing the first 200. Use Find to reach the rest.'));
+    }
+  }
+
+  function findNext() {
+    var q = find.value;
+    if (!q) { msg.textContent = 'Type something to find.'; return false; }
+    var hay = ta.value.toLowerCase(), n = q.toLowerCase();
+    var i = hay.indexOf(n, ta.selectionEnd || 0);
+    if (i === -1) i = hay.indexOf(n, 0);
+    if (i === -1) { msg.textContent = 'No matches.'; return false; }
+    var total = hay.split(n).length - 1;
+    var idx = hay.slice(0, i).split(n).length;
+    msg.textContent = 'Match ' + idx + ' of ' + total + '.';
+    jumpTo(ta, i, i + q.length);
+    return true;
+  }
+
+  function replaceOne() {
+    var q = find.value;
+    if (!q) { msg.textContent = 'Type something to find.'; return; }
+    var s = ta.selectionStart, e = ta.selectionEnd;
+    if (e > s && ta.value.slice(s, e).toLowerCase() === q.toLowerCase()) {
+      var v = ta.value;
+      var end = s + repl.value.length;
+      setValue(v.slice(0, s) + repl.value + v.slice(e), end, end);
+    }
+    findNext();
+  }
+
+  function replaceAll() {
+    var q = find.value;
+    if (!q) { msg.textContent = 'Type something to find.'; return; }
+    var re = new RegExp(escapeRe(q), 'gi');
+    var count = (ta.value.match(re) || []).length;
+    if (count === 0) { msg.textContent = 'No matches.'; return; }
+    setValue(ta.value.replace(re, function () { return repl.value; }));
+    msg.textContent = 'Replaced ' + count + (count === 1 ? ' match.' : ' matches.') + ' Tap Cancel if you want to throw these changes away.';
+  }
+
+  ta.addEventListener('input', function () {
+    clearTimeout(timer);
+    timer = setTimeout(renderMarks, 250);
+  });
+  $(p + '-find-next').addEventListener('click', findNext);
+  $(p + '-replace').addEventListener('click', replaceOne);
+  $(p + '-replace-all').addEventListener('click', replaceAll);
+  find.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); findNext(); }
+  });
+  renderMarks();
+}
+
+function onFindShortcut(e) {
+  if (!(e.ctrlKey || e.metaKey) || String(e.key).toLowerCase() !== 'f') return;
+  var p = $('modal-organize').style.display === 'flex' ? 'org'
+    : ($('modal-chapter').style.display === 'flex' ? 'ch' : null);
+  if (!p) return;
+  e.preventDefault();
+  var ta = $(p === 'org' ? 'org-text' : 'ch-body');
+  var picked = (ta.selectionEnd > ta.selectionStart) ? ta.value.slice(ta.selectionStart, ta.selectionEnd) : '';
+  $(p + '-tools').open = true;
+  var f = $(p + '-find');
+  if (picked && picked.length < 80 && picked.indexOf('\n') === -1) f.value = picked;
+  f.focus();
+  f.select();
+}
+
 function wire() {
+  setupTextTools('org', 'org-text');
+  setupTextTools('ch', 'ch-body');
+  document.addEventListener('keydown', onFindShortcut);
   $('form-login').addEventListener('submit', handleLogin);
   $('form-signup').addEventListener('submit', handleSignup);
   $('form-unlock').addEventListener('submit', handleUnlock);
