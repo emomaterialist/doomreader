@@ -5,8 +5,8 @@
    1) Paste your DoomReader project URL and publishable key below.
       (Supabase > Project Settings > API Keys. Never use the secret key here.)
    ============================================================ */
-var SUPABASE_URL = 'PASTE_YOUR_DOOMREADER_PROJECT_URL_HERE';
-var SUPABASE_KEY = 'PASTE_YOUR_PUBLISHABLE_KEY_HERE';
+var SUPABASE_URL = 'https://asqagrzeadzmtedttfzi.supabase.co';
+var SUPABASE_KEY = 'sb_publishable_5LpOZw3izDYGbB4IgwCsdg_gKy8rSYq';
 var PRODUCT_ID = 'reading-app';
 
 var MAX_BOOK_CHARS = 3000000;
