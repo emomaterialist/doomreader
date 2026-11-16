@@ -2,11 +2,12 @@
 
 /* ============================================================
    DoomReader
-   1) Paste your DoomReader project URL and publishable key below.
-      (Supabase > Project Settings > API Keys. Never use the secret key here.)
+   Your Supabase URL and publishable key live in config.js (not here),
+   so updating this file never overwrites them.
    ============================================================ */
-var SUPABASE_URL = 'PASTE_YOUR_DOOMREADER_PROJECT_URL_HERE';
-var SUPABASE_KEY = 'PASTE_YOUR_PUBLISHABLE_KEY_HERE';
+var CONFIG = window.DOOMREADER_CONFIG || {};
+var SUPABASE_URL = CONFIG.SUPABASE_URL || 'https://asqagrzeadzmtedttfzi.supabase.co';
+var SUPABASE_KEY = CONFIG.SUPABASE_KEY || 'sb_publishable_5LpOZw3izDYGbB4IgwCsdg_gKy8rSYq';
 var PRODUCT_ID = 'reading-app';
 
 var MAX_BOOK_CHARS = 3000000;
@@ -1354,7 +1355,7 @@ function init() {
   wire();
   if (!window.supabase || SUPABASE_URL.indexOf('PASTE_') === 0 || SUPABASE_KEY.indexOf('PASTE_') === 0) {
     showAuthForm('login');
-    showMsg('login-msg', 'Setup needed: paste your Supabase URL and publishable key at the top of script.js.', 'error');
+    showMsg('login-msg', 'Setup needed: paste your Supabase URL and publishable key into config.js.', 'error');
     return;
   }
   sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
